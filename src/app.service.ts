@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Nack, RabbitRPC } from '@nestjs-plus/rabbitmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product } from './entities/product.entity';
+import { Event } from './entities/event.entity';
 import { DeleteResult, Repository, UpdateResult } from 'typeorm';
 import { AddProduct } from './interface/add-product.interface';
 
@@ -10,6 +11,7 @@ export class AppService {
   constructor(
     @InjectRepository(Product)
     private repository: Repository<Product>,
+    private eventRepository: Repository<Event>,
   ) {
   }
 
@@ -42,7 +44,14 @@ export class AppService {
       newProduct.quantity = product.qty;
       newProduct.productCode = product.productCode;
       newProduct.registerDate = product.registerDate;
-      return await this.repository.save(newProduct);
+      const res = await this.repository.save(newProduct);
+
+      const newEvent = new Event();
+      newEvent.type = EnumEventType.CREATED;
+      newEvent.object = JSON.stringify(newProduct);
+      await this.eventRepository.save(newEvent);
+
+      return res;
     } catch (e) {
       console.log('ERROR:', e);
       return new Nack(true);
