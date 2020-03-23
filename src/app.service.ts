@@ -9,9 +9,8 @@ import { AddProduct } from './interface/add-product.interface';
 @Injectable()
 export class AppService {
   constructor(
-    @InjectRepository(Product)
-    private repository: Repository<Product>,
-    private eventRepository: Repository<Event>,
+    @InjectRepository(Product) private repository: Repository<Product>,
+    @InjectRepository(Event) private eventRepository: Repository<Event>,
   ) {
   }
 
