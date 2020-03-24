@@ -19,7 +19,7 @@ import { AppService } from './app.service';
       exchanges: [
         {
           name: 'kardex',
-          type: 'direct',
+          type: 'topic',
         },
       ],
     }),

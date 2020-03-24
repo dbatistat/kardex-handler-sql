@@ -5,7 +5,7 @@ import { Product } from './entities/product.entity';
 import { Event } from './entities/event.entity';
 import { Repository } from 'typeorm';
 import { AddProduct } from './interface/add-product.interface';
-import { UpdateProduct } from './interface/update-product.interface';
+import { RabbitmqMessage } from './interface/rabbitmq-message.interface';
 
 @Injectable()
 export class AppService {
@@ -18,10 +18,25 @@ export class AppService {
 
   @RabbitRPC({
     exchange: 'kardex',
-    routingKey: 'add-product',
+    routingKey: 'products',
     queue: 'kardex-sql',
   })
-  public async create(product: AddProduct) {
+  async rabbitMQMessage({ route, data }: RabbitmqMessage) {
+    if (route === 'update-product') {
+      await this.update(data);
+    } else if (route === 'add-product') {
+      await this.create(data);
+    }
+  }
+
+  async createEvent(product, event: 'CREATED' | 'UPDATED') {
+    const newEvent = new Event();
+    newEvent.type = event;
+    newEvent.object = JSON.stringify(product);
+    return this.eventRepository.save(newEvent);
+  }
+
+  private async create(product: AddProduct) {
     console.log('ADD PRODUCT', product);
     try {
       const newProduct = new Product();
@@ -37,23 +52,19 @@ export class AppService {
     }
   }
 
-  @RabbitRPC({
-    exchange: 'kardex',
-    routingKey: 'update-product',
-    queue: 'kardex-sql',
-  })
-  async update({ id, qty, price }: UpdateProduct) {
-    console.log('UPDATE PRODUCT', { id, qty, price });
+  private async update({ id, qty, price }) {
     try {
       const entity = await this.productRepository.findOne({ id });
       if (!entity) {
         return;
       }
+      console.log('Entity qty', entity.quantity);
+      console.log('qty', qty);
+      const qtyResult = entity.quantity - qty;
       entity.quantity = qty;
       entity.price = price;
       const result = await this.productRepository.update(entity.id, entity);
       await this.createEvent(result, 'UPDATED');
-      const qtyResult = entity.quantity - qty;
       this.updateQtyView({ qty: qtyResult, productCode: entity.productCode });
       this.updatePriceView({ productCode: entity.productCode, price });
       return result;
@@ -63,22 +74,17 @@ export class AppService {
     }
   }
 
-  async createEvent(product, event: 'CREATED' | 'UPDATED') {
-    const newEvent = new Event();
-    newEvent.type = event;
-    newEvent.object = JSON.stringify(product);
-    return this.eventRepository.save(newEvent);
-  }
-
   private updateQtyView({ productCode, qty }) {
     if (qty >= 0) {
-      this.amqpConnection.publish('kardex', 'substract-qty-product', { productCode, qty: Math.abs(qty) });
+      console.log('SEND SUBTRACT QTY', qty);
+      this.amqpConnection.publish('kardex', 'products', {route: 'substract-qty-product', data: { productCode, qty: Math.abs(qty) }});
     } else {
-      this.amqpConnection.publish('kardex', 'add-qty-product', { productCode, qty: Math.abs(qty) });
+      console.log('SEND ADD QTY', qty);
+      this.amqpConnection.publish('kardex', 'products', {route: 'add-qty-product', data: { productCode, qty: Math.abs(qty) }});
     }
   }
 
   private updatePriceView({ productCode, price }) {
-    this.amqpConnection.publish('kardex', 'change-price-product', { productCode, price });
+    this.amqpConnection.publish('kardex', 'products', {route: 'change-price-product', data: { productCode, price }});
   }
 }
