@@ -59,7 +59,7 @@ export class AppService {
       return result;
     } catch (e) {
       console.log('ERROR: ', e);
-      return new Nack(true);
+      return new Nack(false);
     }
   }
 
