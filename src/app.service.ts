@@ -28,9 +28,9 @@ export class AppService {
       newProduct.price = product.price;
       newProduct.quantity = product.qty;
       newProduct.productCode = product.productCode;
-      newProduct.registerDate = product.registerDate;
+      newProduct.registerDate = new Date(product.registerDate);
       const result = await this.productRepository.save(newProduct);
-      await this.createEvent(result, EnumEventType.CREATED);
+      await this.createEvent(result, 'CREATED');
       return result;
     } catch (e) {
       return new Nack(false);
@@ -52,7 +52,7 @@ export class AppService {
       entity.quantity = qty;
       entity.price = price;
       const result = await this.productRepository.update(entity.id, entity);
-      await this.createEvent(result, EnumEventType.UPDATED);
+      await this.createEvent(result, 'UPDATED');
       const qtyResult = entity.quantity - qty;
       this.updateQtyView({ qty: qtyResult, productCode: entity.productCode });
       this.updatePriceView({ productCode: entity.productCode, price });
@@ -63,11 +63,11 @@ export class AppService {
     }
   }
 
-  private async createEvent(product, event: EnumEventType) {
+  async createEvent(product, event: 'CREATED' | 'UPDATED') {
     const newEvent = new Event();
-    newEvent.type = EnumEventType.CREATED;
+    newEvent.type = event;
     newEvent.object = JSON.stringify(product);
-    await this.eventRepository.save(newEvent);
+    return this.eventRepository.save(newEvent);
   }
 
   private updateQtyView({ productCode, qty }) {
